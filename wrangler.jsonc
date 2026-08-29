@@ -1,0 +1,50 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "crypto-risk-agent",
+  "main": "src/server.ts",
+  // Update to the actual date you run `wrangler deploy`
+  "compatibility_date": "2026-08-29",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Serves public/index.html (the chat + CBOM upload UI)
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS"
+  },
+
+  // The Agent itself is a Durable Object under the hood
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CryptoRiskAgent",
+        "class_name": "CryptoRiskAgent"
+      }
+    ]
+  },
+
+  // Required whenever a Worker adds a new Durable Object class
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["CryptoRiskAgent"]
+    }
+  ],
+
+  // The multi-step classify -> report pipeline
+  "workflows": [
+    {
+      "name": "crypto-risk-workflow",
+      "binding": "RISK_WORKFLOW",
+      "class_name": "CryptoRiskWorkflow"
+    }
+  ],
+
+  // Workers AI for classification + chat
+  "ai": {
+    "binding": "AI"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}

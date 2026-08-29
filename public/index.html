@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Crypto Risk Triage</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; color: #1a1a1a; }
+    h1 { font-size: 1.4rem; }
+    section { margin-bottom: 28px; }
+    textarea { width: 100%; height: 140px; font-family: monospace; font-size: 0.85rem; }
+    button { padding: 8px 16px; cursor: pointer; }
+    #status { font-weight: 600; }
+    #report { white-space: pre-wrap; background: #f6f6f6; padding: 16px; border-radius: 6px; }
+    #chatLog { border: 1px solid #ddd; border-radius: 6px; padding: 12px; min-height: 80px; margin-bottom: 8px; }
+    .msg-q { font-weight: 600; margin-top: 8px; }
+    .msg-a { margin: 4px 0 8px 0; }
+  </style>
+</head>
+<body>
+  <h1>Crypto Risk Triage Agent</h1>
+
+  <section>
+    <h2>1. Load findings</h2>
+    <p>Paste a normalized findings array (CBOM parsing lands here in a later milestone — for now, hand-author a few to test the pipeline end to end).</p>
+    <textarea id="findingsInput">[
+  {
+    "id": "f1",
+    "algorithm": "RSA",
+    "keySize": 2048,
+    "location": "payments-service/tls-cert",
+    "usageContext": "TLS termination for external payment API",
+    "source": "manual"
+  },
+  {
+    "id": "f2",
+    "algorithm": "AES-256-GCM",
+    "keySize": 256,
+    "location": "internal-cache/redis",
+    "usageContext": "data-at-rest encryption, internal only",
+    "source": "manual"
+  }
+]</textarea>
+    <br /><br />
+    <button id="submitFindings">Run analysis</button>
+    <p>Status: <span id="status">idle</span></p>
+  </section>
+
+  <section>
+    <h2>2. Report</h2>
+    <div id="report">No report yet.</div>
+  </section>
+
+  <section>
+    <h2>3. Ask a question</h2>
+    <div id="chatLog"></div>
+    <input id="chatInput" type="text" style="width: 80%" placeholder="Why is finding f1 rated that way?" />
+    <button id="sendChat">Ask</button>
+  </section>
+
+  <script type="module">
+    import { AgentClient } from "https://esm.sh/agents/client";
+
+    const client = new AgentClient({
+      agent: "CryptoRiskAgent",
+      name: "default-session", // fixed session id for this single-user scaffold
+    });
+
+    const statusEl = document.getElementById("status");
+    const reportEl = document.getElementById("report");
+
+    function render(state) {
+      if (!state) return;
+      statusEl.textContent = state.status;
+      if (state.status === "error") {
+        reportEl.textContent = `Error: ${state.errorMessage}`;
+      } else if (state.report) {
+        reportEl.textContent = state.report;
+      } else {
+        reportEl.textContent = "No report yet.";
+      }
+    }
+
+    client.addEventListener("state", (event) => render(event.state));
+    // Some client versions expose state directly after connect — cover both.
+    render(client.state);
+
+    document.getElementById("submitFindings").addEventListener("click", async () => {
+      const raw = document.getElementById("findingsInput").value;
+      let findings;
+      try {
+        findings = JSON.parse(raw);
+      } catch (e) {
+        alert("Findings input is not valid JSON: " + e.message);
+        return;
+      }
+      await client.call("ingestFindings", [findings]);
+    });
+
+    document.getElementById("sendChat").addEventListener("click", async () => {
+      const input = document.getElementById("chatInput");
+      const question = input.value.trim();
+      if (!question) return;
+      const log = document.getElementById("chatLog");
+
+      const q = document.createElement("div");
+      q.className = "msg-q";
+      q.textContent = "Q: " + question;
+      log.appendChild(q);
+      input.value = "";
+
+      const answer = await client.call("askQuestion", [question]);
+
+      const a = document.createElement("div");
+      a.className = "msg-a";
+      a.textContent = answer;
+      log.appendChild(a);
+      log.scrollTop = log.scrollHeight;
+    });
+  </script>
+</body>
+</html>
