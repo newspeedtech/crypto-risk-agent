@@ -4,19 +4,23 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:client": "esbuild src/frontend/main.ts --bundle --format=esm --outfile=public/client.bundle.js",
+    "predev": "npm run build:client",
     "dev": "wrangler dev",
+    "predeploy": "npm run build:client",
     "deploy": "wrangler deploy",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
-    "agents": "^0.2.0",
-    "ai": "^5.0.0",
-    "workers-ai-provider": "^1.0.0",
-    "zod": "^3.24.0"
+    "agents": "^0.22.0",
+    "ai": "^7.0.85",
+    "workers-ai-provider": "^4.0.0",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260801.0",
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.28.2",
     "typescript": "^5.7.0",
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.127.1"
   }
 }

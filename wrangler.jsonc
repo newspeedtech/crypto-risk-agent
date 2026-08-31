@@ -41,7 +41,8 @@
 
   // Workers AI for classification + chat
   "ai": {
-    "binding": "AI"
+    "binding": "AI",
+    "remote": true
   },
 
   "observability": {

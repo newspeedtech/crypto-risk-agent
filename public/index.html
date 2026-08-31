@@ -18,28 +18,49 @@
 </head>
 <body>
   <h1>Crypto Risk Triage Agent</h1>
+  <p>Connection: <span id="conn">connecting…</span></p>
 
   <section>
-    <h2>1. Load findings</h2>
-    <p>Paste a normalized findings array (CBOM parsing lands here in a later milestone — for now, hand-author a few to test the pipeline end to end).</p>
-    <textarea id="findingsInput">[
-  {
-    "id": "f1",
-    "algorithm": "RSA",
-    "keySize": 2048,
-    "location": "payments-service/tls-cert",
-    "usageContext": "TLS termination for external payment API",
-    "source": "manual"
-  },
-  {
-    "id": "f2",
-    "algorithm": "AES-256-GCM",
-    "keySize": 256,
-    "location": "internal-cache/redis",
-    "usageContext": "data-at-rest encryption, internal only",
-    "source": "manual"
-  }
-]</textarea>
+    <h2>1. Load a CBOM</h2>
+    <p>Paste CycloneDX CBOM JSON (spec &ge;1.6). Only <code>cryptographic-asset</code> components with <code>assetType: "algorithm"</code> are parsed right now — other asset types are reported as warnings, not silently dropped.</p>
+    <textarea id="findingsInput">{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "components": [
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto/rsa-tls-cert",
+      "name": "RSA",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "2048",
+          "cryptoFunctions": ["keygen", "encrypt", "decrypt"]
+        }
+      },
+      "evidence": {
+        "occurrences": [{ "location": "payments-service/tls-cert" }]
+      }
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto/aes-cache",
+      "name": "AES-256-GCM",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "ae",
+          "parameterSetIdentifier": "256",
+          "cryptoFunctions": ["encrypt", "decrypt"]
+        }
+      },
+      "evidence": {
+        "occurrences": [{ "location": "internal-cache/redis" }]
+      }
+    }
+  ]
+}</textarea>
     <br /><br />
     <button id="submitFindings">Run analysis</button>
     <p>Status: <span id="status">idle</span></p>
@@ -57,65 +78,6 @@
     <button id="sendChat">Ask</button>
   </section>
 
-  <script type="module">
-    import { AgentClient } from "https://esm.sh/agents/client";
-
-    const client = new AgentClient({
-      agent: "CryptoRiskAgent",
-      name: "default-session", // fixed session id for this single-user scaffold
-    });
-
-    const statusEl = document.getElementById("status");
-    const reportEl = document.getElementById("report");
-
-    function render(state) {
-      if (!state) return;
-      statusEl.textContent = state.status;
-      if (state.status === "error") {
-        reportEl.textContent = `Error: ${state.errorMessage}`;
-      } else if (state.report) {
-        reportEl.textContent = state.report;
-      } else {
-        reportEl.textContent = "No report yet.";
-      }
-    }
-
-    client.addEventListener("state", (event) => render(event.state));
-    // Some client versions expose state directly after connect — cover both.
-    render(client.state);
-
-    document.getElementById("submitFindings").addEventListener("click", async () => {
-      const raw = document.getElementById("findingsInput").value;
-      let findings;
-      try {
-        findings = JSON.parse(raw);
-      } catch (e) {
-        alert("Findings input is not valid JSON: " + e.message);
-        return;
-      }
-      await client.call("ingestFindings", [findings]);
-    });
-
-    document.getElementById("sendChat").addEventListener("click", async () => {
-      const input = document.getElementById("chatInput");
-      const question = input.value.trim();
-      if (!question) return;
-      const log = document.getElementById("chatLog");
-
-      const q = document.createElement("div");
-      q.className = "msg-q";
-      q.textContent = "Q: " + question;
-      log.appendChild(q);
-      input.value = "";
-
-      const answer = await client.call("askQuestion", [question]);
-
-      const a = document.createElement("div");
-      a.className = "msg-a";
-      a.textContent = answer;
-      log.appendChild(a);
-      log.scrollTop = log.scrollHeight;
-    });
-  </script>
+  <script type="module" src="/client.bundle.js"></script>
 </body>
 </html>

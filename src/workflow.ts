@@ -54,13 +54,11 @@ export class CryptoRiskWorkflow extends WorkflowEntrypoint<Env, RiskWorkflowPara
       });
 
       await step.do("report-back-to-agent", async () => {
-        // @ts-expect-error -- callable() methods are exposed as RPC on the stub
         await agentStub.completeAnalysis(analysis, report);
       });
     } catch (err) {
       await step.do("report-error-to-agent", async () => {
         const message = err instanceof Error ? err.message : String(err);
-        // @ts-expect-error -- callable() methods are exposed as RPC on the stub
         await agentStub.reportWorkflowError(message);
       });
       throw err;

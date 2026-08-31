@@ -3,16 +3,16 @@ import { createWorkersAI } from "workers-ai-provider";
 import { generateText } from "ai";
 import type { AgentState, CryptoFinding } from "./types";
 import { initialAgentState } from "./types";
+import { parseCBOM } from "./cbom-parser";
 
 export class CryptoRiskAgent extends Agent<Env, AgentState> {
   initialState: AgentState = initialAgentState;
 
-  // Called by the frontend once a CBOM file (or manually assembled finding
-  // list) has been parsed client-side into CryptoFinding[]. Parsing itself
-  // moves server-side in the next milestone — for now this accepts
-  // already-normalized findings so the pipeline can be wired end to end.
-  @callable()
-  async ingestFindings(findings: CryptoFinding[]) {
+  // Shared by ingestFindings and ingestCBOM once a CryptoFinding[] has been
+  // produced, however it got there. Hands off to the Workflow for the
+  // durable, retryable classify -> report pipeline; passes this agent's own
+  // id so the Workflow can call back in with results when it's done.
+  private async startAnalysis(findings: CryptoFinding[]) {
     this.setState({
       ...this.state,
       status: "analyzing",
@@ -22,17 +22,49 @@ export class CryptoRiskAgent extends Agent<Env, AgentState> {
       errorMessage: null,
     });
 
-    // Hand off to the Workflow for the durable, retryable classify -> report
-    // pipeline. We pass this agent's own id so the Workflow can call back
-    // in with results when it's done.
     await this.env.RISK_WORKFLOW.create({
       params: {
         agentId: this.name,
         findings,
       },
     });
+  }
 
+  // Accepts an already-normalized findings array directly — useful for
+  // programmatic entry (tests, scripted demos) without going through CBOM.
+  @callable()
+  async ingestFindings(findings: CryptoFinding[]) {
+    await this.startAnalysis(findings);
     return { accepted: findings.length };
+  }
+
+  // Accepts raw CycloneDX CBOM JSON (as a string, since it comes straight
+  // off a textarea/file upload) and parses it into CryptoFinding[] before
+  // kicking off the same pipeline. See src/cbom-parser.ts for what's mapped
+  // vs skipped — currently only assetType "algorithm" components.
+  @callable()
+  async ingestCBOM(cbomJson: string) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cbomJson);
+    } catch (err) {
+      throw new Error(`CBOM input is not valid JSON: ${(err as Error).message}`);
+    }
+
+    let result: ReturnType<typeof parseCBOM>;
+    try {
+      result = parseCBOM(parsed);
+    } catch (err) {
+      throw new Error(`CBOM does not match the expected CycloneDX shape: ${(err as Error).message}`);
+    }
+
+    if (result.findings.length === 0) {
+      const detail = result.warnings.length > 0 ? ` ${result.warnings.join(" ")}` : "";
+      throw new Error(`No supported cryptographic-asset findings found in this CBOM.${detail}`);
+    }
+
+    await this.startAnalysis(result.findings);
+    return { accepted: result.findings.length, warnings: result.warnings };
   }
 
   // Called by the Workflow when the classify -> report pipeline finishes.
