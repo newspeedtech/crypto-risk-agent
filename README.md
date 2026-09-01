@@ -1,36 +1,46 @@
 # Crypto Risk Triage Agent
 
-Scaffold for a Cloudflare Agent that takes a normalized crypto inventory
-(eventually parsed from CBOM output), classifies each finding's
+A Cloudflare Agent that takes a normalized crypto inventory (parsed from
+CycloneDX CBOM output, or hand-entered), classifies each finding's
 post-quantum migration risk, generates a prioritized report, and answers
 follow-up questions against the result.
 
 ## Architecture (maps to the four required components)
 
-- **LLM** — Llama 3.3 on Workers AI (`src/agent.ts`, `src/workflow.ts`)
+- **LLM** — Llama 3.3 on Workers AI (`src/agent.ts`, `src/workflow.ts`),
+  via `workers-ai-provider` + the `ai` SDK.
 - **Workflow/coordination** — `CryptoRiskWorkflow` (`src/workflow.ts`), a
   durable multi-step pipeline: classify each finding individually (so one
   bad LLM response doesn't restart the whole batch on retry), then
   generate the report, then call back into the Agent.
-- **User input** — `public/index.html`, a plain-JS page using the vanilla
-  `AgentClient` for RPC calls and state sync
-- **Memory/state** — `CryptoRiskAgent`'s built-in SQLite-backed state
-  (`src/agent.ts`), holding findings, analysis, and the report across the
-  session
+- **User input (chat)** — `public/index.html` + `src/frontend/main.ts`, a
+  plain TS frontend using the vanilla `AgentClient` for RPC calls and
+  state sync. Chat is single-shot request/response (`askQuestion`), not a
+  streaming multi-turn conversation yet — see CLAUDE.md's "Next steps."
+  **No voice input yet** — see CLAUDE.md's "Open questions" for whether
+  that's in scope.
+- **Memory/state** — `CryptoRiskAgent`'s built-in SQLite-backed Durable
+  Object state (`src/agent.ts`), holding findings, analysis, and the
+  report across the session.
 
 ## What's real vs. stubbed right now
 
-- **Real**: the Agent, Workflow, wrangler bindings, and the classify ->
-  report pipeline all wire together and should run end to end once
-  dependencies are installed.
-- **Stubbed**: CBOM parsing. The frontend currently expects you to paste
-  an already-normalized findings array (see `src/types.ts` for the
-  shape). Parsing actual CycloneDX CBOM JSON into that shape is the next
-  milestone.
+- **Real and verified**: Agent, Workflow, and the classify → report →
+  chat pipeline all wire together and run end to end — confirmed against
+  a real `wrangler deploy` (not just local dev; see CLAUDE.md for a local
+  `wrangler dev`-only limitation with the AI binding inside Workflow
+  steps).
+- **CBOM parsing — scaffolded, not yet validated against real output.**
+  `src/cbom-parser.ts` maps CycloneDX CBOM (spec ≥1.6) JSON onto this
+  project's `CryptoFinding` shape. Only `cryptographic-asset` components
+  with `assetType: "algorithm"` are mapped; other asset types are
+  reported as warnings rather than guessed at. Verified against a
+  synthetic CBOM sample — not yet against real CBOM tooling-eval output.
 - **Simplified**: chat is single-shot request/response (`askQuestion`),
-  not a streaming multi-turn conversation. `@cloudflare/ai-chat` +
-  `useAgentChat` would give you that, but the client half is React-only
-  right now, so it's deferred until the core pipeline is proven out.
+  not a streaming multi-turn conversation. Migrating to `AIChatAgent` +
+  `useAgentChat` is a tracked next step, gated on whether a
+  framework-agnostic client exists yet (that API was React-only last
+  checked).
 
 ## Setup
 
@@ -41,17 +51,21 @@ npm run dev
 
 Then open the local URL Wrangler prints (usually `http://localhost:8787`).
 
+## Testing
+
+```bash
+npm test        # single run
+npm run test:watch
+```
+
+Requires Node `^22.18.0 || >=24.11.0` (see `.nvmrc`) — run `nvm use`
+first if unsure which Node is active. See CLAUDE.md's "Key decisions"
+for why (the test plugin's own dependencies enforce this), plus two
+non-obvious setup requirements (`agents/vite`'s decorator transform, and
+a documented coverage tradeoff on the workflow's embedded AI calls)
+before extending the suite.
+
 ## Known rough edges to check when you run this
-
-Package versions in `package.json` are best-guess pins — run
-`npm install agents@latest ai@latest workers-ai-provider@latest zod@latest`
-after the first install to make sure you're not stuck on a stale range.
-
-The frontend imports `AgentClient` from an `esm.sh` CDN URL for zero
-build-step simplicity. If that doesn't resolve cleanly, switch to a real
-bundler (Vite is the path of least resistance) and
-`import { AgentClient } from "agents/client"` normally — worth doing
-anyway once the UI grows past this scaffold.
 
 Model ID `@cf/meta/llama-3.3-70b-instruct-fp8-fast` — confirm it's still
 the current Llama 3.3 model slug on Workers AI when you run this; Workers
@@ -59,7 +73,5 @@ AI model catalog entries do get renamed/deprecated.
 
 ## Next steps
 
-1. CBOM (CycloneDX) parser to replace the manual findings textarea
-2. Iterate on the classification prompt against real output from the
-   CBOM tooling eval — this is the part worth spending the most time on
-3. Prompt history log for the assignment submission
+See CLAUDE.md's "Next steps, in order" and "Open questions" — kept there
+instead of duplicated here so there's one source of truth.

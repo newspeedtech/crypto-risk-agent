@@ -24,6 +24,18 @@ migration path design, and implementation sequencing across a portfolio
 of findings. CBOM output is the _input_ to this agent, not a competitor
 to it.
 
+## Open questions
+
+- **Does "chat/voice input" mean either-or, or does a reviewer expect
+  actual voice input?** As of 2026-09-01, there is zero voice/speech code
+  anywhere in this repo — no Web Speech API, no Workers AI
+  speech-to-text, nothing. Chat exists (`askQuestion`, single-shot, see
+  "Key decisions"). If the assignment's "chat/voice" is either-or, chat
+  alone covers the requirement, if thinly. If a reviewer specifically
+  checks for voice, this is an unmet requirement, not a partial one —
+  flagged here explicitly so it isn't mistaken for an oversight later.
+  Not yet decided which reading to build for; decide before submission.
+
 ## Architecture
 
 - **LLM** — Llama 3.3 on Workers AI, via `workers-ai-provider` + the `ai`
