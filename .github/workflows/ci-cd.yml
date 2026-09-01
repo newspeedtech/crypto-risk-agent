@@ -1,0 +1,50 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    name: Typecheck & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - run: npm ci
+
+      # Three separate tsconfigs, on purpose — see CLAUDE.md "Real and
+      # verified": the Worker config deliberately excludes DOM lib types
+      # the frontend needs, and the test config needs the vitest-plugin
+      # ambient types neither of the other two should carry.
+      - run: npx tsc --noEmit -p tsconfig.json
+      - run: npx tsc --noEmit -p tsconfig.frontend.json
+      - run: npx tsc --noEmit -p tsconfig.test.json
+
+      - run: npm run build:client
+
+      - run: npm test
+
+  deploy:
+    name: Deploy to Cloudflare
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # wrangler-action invokes `wrangler deploy` directly, not `npm run
+      # deploy`, so the predeploy npm hook (which builds the client
+      # bundle) never fires on its own — build it explicitly first.
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          preCommands: npm run build:client

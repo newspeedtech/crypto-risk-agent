@@ -122,6 +122,24 @@ to it.
   stale `nvm` default) `npm install` warns but still installs, then
   `vitest` fails confusingly later. Run `nvm use` before `npm test` if
   unsure which Node is active.
+- **CI/CD is two separate workflow files, not one, and deploy is gated
+  on CI via `needs:` within a single file (`ci-cd.yml`), not a
+  cross-workflow `workflow_run` trigger.** `.github/workflows/ci-cd.yml`
+  runs typecheck (all three tsconfigs) + `npm test` on every push/PR, and
+  only deploys (via `cloudflare/wrangler-action`) on push to `main`, after
+  the `ci` job succeeds. `.github/workflows/claude.yml` is deliberately
+  separate and triggers only on explicit `@claude` mentions (not
+  automatic PR review — that was a scoped decision, not a default).
+  Requires three repo secrets that were **not** set up by this session
+  (deliberately — API tokens shouldn't be generated or pasted in by an
+  agent): `ANTHROPIC_API_KEY` (claude.yml), `CLOUDFLARE_API_TOKEN`, and
+  `CLOUDFLARE_ACCOUNT_ID` (both for the deploy job — wrangler.jsonc has
+  no `account_id`, so the deploy job will fail with "No account id
+  found" until that secret is added). `wrangler-action` invokes
+  `wrangler deploy` directly, not `npm run deploy`, so the `predeploy`
+  npm hook never fires — the deploy step passes `preCommands: npm run
+  build:client` explicitly instead; don't remove that assuming the hook
+  covers it.
 - **Session name is hardcoded to `"default-session"`.** Fine for solo
   use and for the assignment demo. First thing to fix before any
   client-facing deployment — generate a per-visitor session id instead.
