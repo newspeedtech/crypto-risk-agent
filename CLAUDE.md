@@ -66,6 +66,50 @@ to it.
 - **State updates come via an `onStateUpdate` constructor callback, not
   a `"state"` DOM event.** Easy to get wrong by pattern-matching to
   normal `addEventListener` usage.
+- **Test suite uses `@cloudflare/vitest-plugin` (not the older
+  `@cloudflare/vitest-pool-workers`).** Cloudflare replaced the pool-based
+  approach with a Vite-plugin one; `@cloudflare/vitest-pool-workers` was
+  last published 2026-08-18 vs. `@cloudflare/vitest-plugin`'s 2026-08-28 —
+  don't reach for the old package from stale training data, verify
+  against the registry like the `ai` SDK v5→v7 jump. Config lives in
+  `vitest.config.ts` via `cloudflareTest({ wrangler: { configPath:
+  "./wrangler.jsonc" } })`, which derives all bindings (AI, the
+  `CryptoRiskAgent` DO, `RISK_WORKFLOW`) from the real wrangler config —
+  no separate test-only binding setup to keep in sync.
+- **`vitest.config.ts` also needs `agents()` from `agents/vite`, or
+  `@callable()` fails at import time with `SyntaxError: Invalid or
+  unexpected token`.** The Agents SDK uses TC39 (standard) decorators;
+  the vitest plugin's own Vite/Oxc transform doesn't support that syntax
+  without this plugin. Do **not** "fix" this by setting
+  `experimentalDecorators: true` in a tsconfig — that applies the
+  incompatible legacy decorator transform and breaks `@callable()`
+  silently at runtime instead of loudly at build time. This only bit
+  `test/agent.test.ts` and `test/workflow.test.ts` (anything that loads
+  `CryptoRiskAgent` via `runInDurableObject`/`introspectWorkflowInstance`)
+  — `test/cbom-parser.test.ts` never touches the DO/Workflow classes so
+  it was unaffected either way, which is what made this confusing to
+  isolate at first.
+- **Test coverage tradeoff, worth knowing before extending workflow
+  tests:** `introspectWorkflowInstance`'s `mockStepResult`/`mockStepError`
+  bypass a `step.do()` body entirely rather than stubbing what it calls.
+  So `test/workflow.test.ts` verifies `CryptoRiskWorkflow`'s own
+  orchestration (per-finding aggregation, success/error callback into the
+  Agent) but does **not** exercise the real `generateObject`/`generateText`
+  calls inside those steps — including whether `CHAT_MODEL` is wired
+  correctly there. `test/agent.test.ts`'s `askQuestion` test does cover
+  real `CHAT_MODEL` wiring, by mocking one level lower (`env.AI.run` via
+  `vi.spyOn`, following the official `ai-vectorize` fixture pattern) and
+  letting the real `generateText` call execute against the mock. If the
+  workflow's AI calls need real-code-path coverage later, mock at the
+  `env.AI.run` level there too instead of the step level — it's more
+  work (mocking a structured-output response shape) but actually
+  exercises the code.
+- **Requires Node `^22.18.0 || >=24.11.0`** (see `.nvmrc` /
+  `package.json` `engines`) — `@cloudflare/vitest-plugin`'s dependencies
+  (babel packages) enforce this; on an older 22.x (e.g. 22.16 via a
+  stale `nvm` default) `npm install` warns but still installs, then
+  `vitest` fails confusingly later. Run `nvm use` before `npm test` if
+  unsure which Node is active.
 - **Session name is hardcoded to `"default-session"`.** Fine for solo
   use and for the assignment demo. First thing to fix before any
   client-facing deployment — generate a per-visitor session id instead.
@@ -126,6 +170,15 @@ binding: this.env.AI })`. This looks wasteful if you assume it opens a
   a real deploy first. `"remote": true` was added to the `ai` binding in
   `wrangler.jsonc` during that investigation (harmless, partial local
   improvement, kept).
+- **Test suite added** (2026-08-31): `npm test` runs 31 tests across
+  `test/cbom-parser.test.ts` (full branch coverage of the parser, no
+  bindings needed), `test/agent.test.ts` (`CryptoRiskAgent`'s callables
+  via `runInDurableObject`, with `env.RISK_WORKFLOW.create`/`env.AI.run`
+  mocked via `vi.spyOn`), and `test/workflow.test.ts`
+  (`CryptoRiskWorkflow`'s success/error orchestration via
+  `introspectWorkflowInstance`'s step mocking). See "Key decisions and
+  why" for the `agents/vite` plugin requirement and the coverage
+  tradeoff on the workflow's embedded AI calls before extending these.
 
 ## Package versions
 

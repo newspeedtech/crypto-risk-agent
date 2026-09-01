@@ -2,7 +2,7 @@ import { Agent, callable } from "agents";
 import { createWorkersAI } from "workers-ai-provider";
 import { generateText } from "ai";
 import type { AgentState, CryptoFinding } from "./types";
-import { initialAgentState } from "./types";
+import { CHAT_MODEL, initialAgentState } from "./types";
 import { parseCBOM } from "./cbom-parser";
 
 export class CryptoRiskAgent extends Agent<Env, AgentState> {
@@ -107,7 +107,7 @@ export class CryptoRiskAgent extends Agent<Env, AgentState> {
         : "No completed crypto risk analysis is loaded yet.";
 
     const { text } = await generateText({
-      model: workersai("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
+      model: workersai(CHAT_MODEL),
       system: [
         "You are a post-quantum cryptography migration advisor.",
         "Answer questions about the crypto inventory and risk analysis below.",

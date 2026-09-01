@@ -3,6 +3,7 @@ import { createWorkersAI } from "workers-ai-provider";
 import { generateObject, generateText } from "ai";
 import { z } from "zod";
 import type { RiskWorkflowParams, RiskAnalysis } from "./types";
+import { CHAT_MODEL } from "./types";
 
 const classificationSchema = z.object({
   priority: z.enum(["critical", "high", "medium", "low"]),
@@ -23,7 +24,7 @@ export class CryptoRiskWorkflow extends WorkflowEntrypoint<Env, RiskWorkflowPara
       for (const finding of findings) {
         const result = await step.do(`classify-${finding.id}`, async () => {
           const { object } = await generateObject({
-            model: workersai("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
+            model: workersai(CHAT_MODEL),
             schema: classificationSchema,
             prompt: [
               "You are assessing post-quantum migration risk for one cryptographic finding.",
@@ -41,7 +42,7 @@ export class CryptoRiskWorkflow extends WorkflowEntrypoint<Env, RiskWorkflowPara
 
       const report = await step.do("generate-report", async () => {
         const { text } = await generateText({
-          model: workersai("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
+          model: workersai(CHAT_MODEL),
           prompt: [
             "Write a prioritized post-quantum cryptography migration report in markdown.",
             "Group findings by priority (critical, high, medium, low). For each, include the",

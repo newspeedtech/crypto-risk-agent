@@ -9,7 +9,12 @@
     "dev": "wrangler dev",
     "predeploy": "npm run build:client",
     "deploy": "wrangler deploy",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
   },
   "dependencies": {
     "agents": "^0.22.0",
@@ -18,9 +23,11 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.1.2",
     "@types/node": "^24.0.0",
     "esbuild": "^0.28.2",
     "typescript": "^5.7.0",
+    "vitest": "^4.1.11",
     "wrangler": "^4.127.1"
   }
 }

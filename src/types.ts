@@ -1,3 +1,8 @@
+// Workers AI model used for both classification and chat. Centralized so a
+// model rename/deprecation (Workers AI does this) is a one-line fix instead
+// of hunting down every call site.
+export const CHAT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+
 // Normalized crypto inventory item — deliberately a subset of CycloneDX CBOM
 // fields. The parser (next milestone) maps whichever scanner's raw output
 // you're using onto this shape.
