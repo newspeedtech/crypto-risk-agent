@@ -143,7 +143,19 @@ to it.
   `npm test` step needs real Cloudflare credentials too, set as job-level
   `env`, same as `deploy`. Don't assume mocking the AI binding in test
   code is enough to avoid needing real credentials in CI; it isn't.
-  `wrangler-action` invokes
+  **The token also needs the right permission scope, not just to
+  exist** — confirmed 2026-09-01: a token sufficient for `wrangler
+  deploy` was rejected with `Authentication error [code: 10000]`
+  specifically on `/accounts/.../workers/subdomain/edge-preview` (the
+  remote-bindings preview session `@cloudflare/vitest-plugin` needs to
+  start the test pool). Isolated by hitting that exact endpoint directly
+  with a known-good OAuth session against the same account — it worked
+  fine, ruling out an account-level gap (workers.dev subdomain, etc.) and
+  pointing squarely at token scope. Fixed by regenerating with
+  Cloudflare's built-in **"Edit Cloudflare Workers"** token template
+  rather than a hand-picked permission set. If CI ever fails this way
+  again, don't re-diagnose from scratch — regenerate with that exact
+  template first. `wrangler-action` invokes
   `wrangler deploy` directly, not `npm run deploy`, so the `predeploy`
   npm hook never fires — the deploy step passes `preCommands: npm run
   build:client` explicitly instead; don't remove that assuming the hook
