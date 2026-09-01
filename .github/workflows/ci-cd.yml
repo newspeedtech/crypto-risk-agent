@@ -9,6 +9,14 @@ jobs:
   ci:
     name: Typecheck & test
     runs-on: ubuntu-latest
+    # The AI binding is `remote: true` (wrangler.jsonc), so
+    # @cloudflare/vitest-plugin opens a real remote-binding proxy session
+    # just to start the test pool worker — before any test file's own
+    # env.AI.run mock ever runs. That needs real Cloudflare credentials
+    # even in `npm test`, not only in the deploy job below.
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v7
 

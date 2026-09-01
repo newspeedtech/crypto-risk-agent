@@ -133,9 +133,17 @@ to it.
   Requires three repo secrets that were **not** set up by this session
   (deliberately — API tokens shouldn't be generated or pasted in by an
   agent): `ANTHROPIC_API_KEY` (claude.yml), `CLOUDFLARE_API_TOKEN`, and
-  `CLOUDFLARE_ACCOUNT_ID` (both for the deploy job — wrangler.jsonc has
-  no `account_id`, so the deploy job will fail with "No account id
-  found" until that secret is added). `wrangler-action` invokes
+  `CLOUDFLARE_ACCOUNT_ID`. The latter two are needed on **both** jobs,
+  not just `deploy` — confirmed by an actual CI run (2026-09-01) that
+  failed `npm test` with "necessary to set a CLOUDFLARE_API_TOKEN
+  environment variable for wrangler to work." The `AI` binding is
+  `remote: true`, so `@cloudflare/vitest-plugin` opens a real
+  remote-binding proxy session just to start the test pool worker,
+  before any test file's own `env.AI.run` mock ever runs — so `ci`'s
+  `npm test` step needs real Cloudflare credentials too, set as job-level
+  `env`, same as `deploy`. Don't assume mocking the AI binding in test
+  code is enough to avoid needing real credentials in CI; it isn't.
+  `wrangler-action` invokes
   `wrangler deploy` directly, not `npm run deploy`, so the `predeploy`
   npm hook never fires — the deploy step passes `preCommands: npm run
   build:client` explicitly instead; don't remove that assuming the hook
