@@ -72,7 +72,11 @@ export class CryptoRiskAgent extends Agent<Env, AgentState> {
   }
 
   // Called by the Workflow when the classify -> report pipeline finishes.
-  @callable()
+  // Deliberately NOT @callable() — this is an internal callback reached via
+  // Cloudflare's native cross-DO RPC (agentStub.completeAnalysis(...) in
+  // workflow.ts), which doesn't need or check @callable(). Decorating it
+  // would expose it to any WebSocket client too, letting them spoof a
+  // completed analysis/report directly. See CLAUDE.md security notes.
   async completeAnalysis(analysis: AgentState["analysis"], report: string) {
     this.setState({
       ...this.state,
@@ -82,7 +86,7 @@ export class CryptoRiskAgent extends Agent<Env, AgentState> {
     });
   }
 
-  @callable()
+  // Same reasoning as completeAnalysis — internal-only, not @callable().
   async reportWorkflowError(errorMessage: string) {
     this.setState({
       ...this.state,

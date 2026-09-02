@@ -54,6 +54,27 @@ to it.
 
 ## Key decisions and why (don't re-litigate these without reason)
 
+- **`completeAnalysis` and `reportWorkflowError` are deliberately NOT
+  `@callable()`.** Fixed 2026-09-02 (security scan): both were previously
+  `@callable()`-decorated, which — per the `agents` package's own
+  dispatch gate (`_isCallable`, checked on every WebSocket RPC call) —
+  exposed them to any browser client connected via `AgentClient`, not
+  just their intended caller (`CryptoRiskWorkflow`'s native cross-DO RPC
+  call in `workflow.ts`, `agentStub.completeAnalysis(...)`, which doesn't
+  go through `_isCallable` at all — that's a different channel). Any
+  client could call `completeAnalysis(fakeAnalysis, fakeReport)` directly
+  to spoof a completed AI analysis, or `reportWorkflowError` to force an
+  arbitrary error message — both trivially reachable given the
+  hardcoded `"default-session"` name (see below). Verified exploitable
+  before the fix and verified blocked after (`Method completeAnalysis is
+  not callable`) against a real dev server, not just reasoned about.
+  **Do not re-add `@callable()` to either method** — if the frontend
+  ever needs to observe completion/error client-side, that already
+  happens via `onStateUpdate` syncing `state.status`; there's no
+  legitimate reason for a browser client to *set* that state directly.
+  This doesn't fix the underlying "any client can act as any session"
+  exposure — that's the hardcoded-session-name issue below, already
+  tracked — it closes the specific privileged-callback bypass.
 - **Plain `Agent` class, not `AIChatAgent`.** The full streaming chat
   wire protocol's client half (`useAgentChat`) is React-only right now.
   Hand-rolling that protocol for a vanilla frontend wasn't worth it for a
