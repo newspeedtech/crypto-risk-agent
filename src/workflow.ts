@@ -31,6 +31,9 @@ export class CryptoRiskWorkflow extends WorkflowEntrypoint<Env, RiskWorkflowPara
               "Consider: is the algorithm quantum-vulnerable, how sensitive is the data it protects,",
               "how long does that data need to stay confidential, and how exposed is this component.",
               `Finding: ${JSON.stringify(finding)}`,
+              "If the finding is a classical security risk, say so. Don't conflate to a pqc risk, ",
+              "but assign priority based off of real security risk.", 
+              "State what you don't know. Describe what information is limited rather than overstating.",
               "Give a priority, a short rationale, and concrete migration guidance for this specific finding.",
             ].join(" "),
           });

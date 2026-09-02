@@ -26,6 +26,7 @@ export type RiskAnalysis = {
 
 export type AgentState = {
   status: "idle" | "analyzing" | "complete" | "error";
+  cbomInput: string | null; // raw CBOM JSON as submitted, so the UI can restore it across a page refresh
   findings: CryptoFinding[];
   analysis: RiskAnalysis[];
   report: string | null;
@@ -34,6 +35,7 @@ export type AgentState = {
 
 export const initialAgentState: AgentState = {
   status: "idle",
+  cbomInput: null,
   findings: [],
   analysis: [],
   report: null,

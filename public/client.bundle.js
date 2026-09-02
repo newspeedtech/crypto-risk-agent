@@ -875,6 +875,8 @@ var AgentClient = class extends PartySocket {
 var statusEl = document.getElementById("status");
 var reportEl = document.getElementById("report");
 var connEl = document.getElementById("conn");
+var findingsInputEl = document.getElementById("findingsInput");
+var hasRestoredInput = false;
 function render(state) {
   if (!state) return;
   statusEl.textContent = state.status;
@@ -884,6 +886,12 @@ function render(state) {
     reportEl.textContent = state.report;
   } else {
     reportEl.textContent = "No report yet.";
+  }
+  if (!hasRestoredInput) {
+    hasRestoredInput = true;
+    if (state.cbomInput) {
+      findingsInputEl.value = state.cbomInput;
+    }
   }
 }
 var client;
@@ -916,7 +924,7 @@ try {
 }
 document.getElementById("submitFindings").addEventListener("click", async () => {
   if (!client) return;
-  const cbomJson = document.getElementById("findingsInput").value;
+  const cbomJson = findingsInputEl.value;
   try {
     await client.ready;
     const result = await client.call("ingestCBOM", [cbomJson]);

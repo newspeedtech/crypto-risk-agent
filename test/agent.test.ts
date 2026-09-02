@@ -69,6 +69,7 @@ describe("ingestCBOM / ingestFindings — kickoff (RISK_WORKFLOW.create mocked)"
 
     const state = await runInDurableObject(stub, (instance: CryptoRiskAgent) => instance.state);
     expect(state.status).toBe("analyzing");
+    expect(state.cbomInput).toBe(cbom);
     expect(state.findings).toEqual([
       { id: "crypto/rsa", algorithm: "RSA", keySize: 2048, location: "svc/tls", source: "cbom-scanner", usageContext: "unspecified usage" },
     ]);
@@ -99,6 +100,7 @@ describe("ingestCBOM / ingestFindings — kickoff (RISK_WORKFLOW.create mocked)"
 
     const state = await runInDurableObject(stub, (instance: CryptoRiskAgent) => instance.state);
     expect(state.status).toBe("analyzing");
+    expect(state.cbomInput).toBeNull();
     expect(state.findings).toEqual(findings);
     expect(createSpy).toHaveBeenCalledTimes(1);
   });
@@ -131,8 +133,21 @@ describe("state-transition callables", () => {
     expect(state.errorMessage).toBe("boom");
   });
 
-  it("reset returns state to initialAgentState after prior activity", async ({ expect }) => {
+  it("reset returns state to initialAgentState after prior activity, including cbomInput", async ({
+    expect,
+  }) => {
+    vi.spyOn(env.RISK_WORKFLOW, "create").mockResolvedValue(undefined as never);
     const stub = freshStub();
+    const cbom = JSON.stringify({
+      components: [
+        {
+          type: "cryptographic-asset",
+          name: "RSA",
+          cryptoProperties: { assetType: "algorithm" },
+        },
+      ],
+    });
+    await runInDurableObject(stub, (instance: CryptoRiskAgent) => instance.ingestCBOM(cbom));
     await runInDurableObject(stub, (instance: CryptoRiskAgent) =>
       instance.reportWorkflowError("boom"),
     );

@@ -4,6 +4,14 @@ import type { AgentState } from "../types";
 const statusEl = document.getElementById("status")!;
 const reportEl = document.getElementById("report")!;
 const connEl = document.getElementById("conn")!;
+const findingsInputEl = document.getElementById("findingsInput") as HTMLTextAreaElement;
+
+// Restore the last-submitted CBOM into the textarea only once, from the
+// initial state sync on page load/refresh — matching how the report
+// already persists. Skipping this on later updates (e.g. analysis
+// finishing in the background) means it won't stomp on whatever the user
+// is actively typing after submitting.
+let hasRestoredInput = false;
 
 function render(state: AgentState | undefined) {
   if (!state) return;
@@ -14,6 +22,13 @@ function render(state: AgentState | undefined) {
     reportEl.textContent = state.report;
   } else {
     reportEl.textContent = "No report yet.";
+  }
+
+  if (!hasRestoredInput) {
+    hasRestoredInput = true;
+    if (state.cbomInput) {
+      findingsInputEl.value = state.cbomInput;
+    }
   }
 }
 
@@ -47,7 +62,7 @@ try {
 
 document.getElementById("submitFindings")!.addEventListener("click", async () => {
   if (!client) return;
-  const cbomJson = (document.getElementById("findingsInput") as HTMLTextAreaElement).value;
+  const cbomJson = findingsInputEl.value;
   try {
     await client.ready;
     const result = (await client.call("ingestCBOM", [cbomJson])) as {

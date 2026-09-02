@@ -12,10 +12,14 @@ export class CryptoRiskAgent extends Agent<Env, AgentState> {
   // produced, however it got there. Hands off to the Workflow for the
   // durable, retryable classify -> report pipeline; passes this agent's own
   // id so the Workflow can call back in with results when it's done.
-  private async startAnalysis(findings: CryptoFinding[]) {
+  // `cbomInput` is the raw CBOM text (null for ingestFindings' structured
+  // entry point) — stored in state purely so the frontend can restore the
+  // textarea across a page refresh, same as it already does for the report.
+  private async startAnalysis(findings: CryptoFinding[], cbomInput: string | null = null) {
     this.setState({
       ...this.state,
       status: "analyzing",
+      cbomInput,
       findings,
       analysis: [],
       report: null,
@@ -63,7 +67,7 @@ export class CryptoRiskAgent extends Agent<Env, AgentState> {
       throw new Error(`No supported cryptographic-asset findings found in this CBOM.${detail}`);
     }
 
-    await this.startAnalysis(result.findings);
+    await this.startAnalysis(result.findings, cbomJson);
     return { accepted: result.findings.length, warnings: result.warnings };
   }
 
