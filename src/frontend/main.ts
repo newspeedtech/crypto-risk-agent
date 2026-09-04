@@ -5,6 +5,7 @@ const statusEl = document.getElementById("status")!;
 const reportEl = document.getElementById("report")!;
 const connEl = document.getElementById("conn")!;
 const findingsInputEl = document.getElementById("findingsInput") as HTMLTextAreaElement;
+const chatLogEl = document.getElementById("chatLog")!;
 
 // Restore the last-submitted CBOM into the textarea only once, from the
 // initial state sync on page load/refresh — matching how the report
@@ -72,6 +73,11 @@ document.getElementById("submitFindings")!.addEventListener("click", async () =>
     if (result.warnings.length > 0) {
       console.warn("CBOM parse warnings:", result.warnings);
     }
+    // A new analysis makes prior Q&A stale — it was about the previous
+    // report. Only clear on success; a failed submission (bad JSON, no
+    // supported findings) leaves the still-current report and its chat
+    // untouched.
+    chatLogEl.replaceChildren();
   } catch (err) {
     reportEl.textContent = "Request failed: " + (err as Error).message;
     console.error(err);
@@ -83,12 +89,11 @@ document.getElementById("sendChat")!.addEventListener("click", async () => {
   const input = document.getElementById("chatInput") as HTMLInputElement;
   const question = input.value.trim();
   if (!question) return;
-  const log = document.getElementById("chatLog")!;
 
   const q = document.createElement("div");
   q.className = "msg-q";
   q.textContent = "Q: " + question;
-  log.appendChild(q);
+  chatLogEl.appendChild(q);
   input.value = "";
 
   try {
@@ -97,14 +102,14 @@ document.getElementById("sendChat")!.addEventListener("click", async () => {
     const a = document.createElement("div");
     a.className = "msg-a";
     a.textContent = String(answer);
-    log.appendChild(a);
+    chatLogEl.appendChild(a);
   } catch (err) {
     const a = document.createElement("div");
     a.className = "msg-a";
     a.style.color = "crimson";
     a.textContent = "Request failed: " + (err as Error).message;
-    log.appendChild(a);
+    chatLogEl.appendChild(a);
     console.error(err);
   }
-  log.scrollTop = log.scrollHeight;
+  chatLogEl.scrollTop = chatLogEl.scrollHeight;
 });

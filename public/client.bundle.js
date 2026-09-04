@@ -876,6 +876,7 @@ var statusEl = document.getElementById("status");
 var reportEl = document.getElementById("report");
 var connEl = document.getElementById("conn");
 var findingsInputEl = document.getElementById("findingsInput");
+var chatLogEl = document.getElementById("chatLog");
 var hasRestoredInput = false;
 function render(state) {
   if (!state) return;
@@ -931,6 +932,7 @@ document.getElementById("submitFindings").addEventListener("click", async () => 
     if (result.warnings.length > 0) {
       console.warn("CBOM parse warnings:", result.warnings);
     }
+    chatLogEl.replaceChildren();
   } catch (err) {
     reportEl.textContent = "Request failed: " + err.message;
     console.error(err);
@@ -941,11 +943,10 @@ document.getElementById("sendChat").addEventListener("click", async () => {
   const input = document.getElementById("chatInput");
   const question = input.value.trim();
   if (!question) return;
-  const log = document.getElementById("chatLog");
   const q = document.createElement("div");
   q.className = "msg-q";
   q.textContent = "Q: " + question;
-  log.appendChild(q);
+  chatLogEl.appendChild(q);
   input.value = "";
   try {
     await client.ready;
@@ -953,14 +954,14 @@ document.getElementById("sendChat").addEventListener("click", async () => {
     const a = document.createElement("div");
     a.className = "msg-a";
     a.textContent = String(answer);
-    log.appendChild(a);
+    chatLogEl.appendChild(a);
   } catch (err) {
     const a = document.createElement("div");
     a.className = "msg-a";
     a.style.color = "crimson";
     a.textContent = "Request failed: " + err.message;
-    log.appendChild(a);
+    chatLogEl.appendChild(a);
     console.error(err);
   }
-  log.scrollTop = log.scrollHeight;
+  chatLogEl.scrollTop = chatLogEl.scrollHeight;
 });

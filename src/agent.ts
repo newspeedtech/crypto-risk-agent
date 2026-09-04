@@ -116,9 +116,14 @@ export class CryptoRiskAgent extends Agent<Env, AgentState> {
 
     const { text } = await generateText({
       model: workersai(CHAT_MODEL),
+      // Workers AI defaults to a 256-token completion cap when this is
+      // unset, silently truncating output — same bug that was cutting
+      // reports off in workflow.ts's generate-report step. 1024 is
+      // generous for a detailed chat answer without being excessive.
+      maxOutputTokens: 1024,
       system: [
         "You are a post-quantum cryptography migration advisor.",
-        "Answer questions about the crypto inventory and risk analysis below.",
+        "Answer questions about the crypto inventory and risk analysis.",
         "Be direct and specific. If something isn't in the data, say so instead of guessing.",
         `Current analysis state: ${context}`,
       ].join(" "),

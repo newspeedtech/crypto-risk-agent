@@ -17,24 +17,7 @@ The assignment requires: an LLM, a workflow/coordination layer, chat/voice
 input, and memory/state — see "Architecture" below for how each is
 satisfied, since a reviewer will be checking for these explicitly.
 
-The domain thesis: CBOM scanners already do discovery well (find crypto
-primitives, output a bill of materials). This agent does the judgment
-layer scanners don't: risk prioritization by data sensitivity + exposure,
-migration path design, and implementation sequencing across a portfolio
-of findings. CBOM output is the _input_ to this agent, not a competitor
-to it.
-
 ## Open questions
-
-- **Does "chat/voice input" mean either-or, or does a reviewer expect
-  actual voice input?** As of 2026-09-01, there is zero voice/speech code
-  anywhere in this repo — no Web Speech API, no Workers AI
-  speech-to-text, nothing. Chat exists (`askQuestion`, single-shot, see
-  "Key decisions"). If the assignment's "chat/voice" is either-or, chat
-  alone covers the requirement, if thinly. If a reviewer specifically
-  checks for voice, this is an unmet requirement, not a partial one —
-  flagged here explicitly so it isn't mistaken for an oversight later.
-  Not yet decided which reading to build for; decide before submission.
 
 ## Architecture
 
@@ -54,6 +37,47 @@ to it.
 
 ## Key decisions and why (don't re-litigate these without reason)
 
+- **Every `generateText`/`generateObject` call sets `maxOutputTokens`
+  explicitly — never leave it unset.** Fixed 2026-09-04 (reported as
+  "report output is being truncated"). Root cause: Workers AI defaults to
+  a **256-token completion cap** for `@cf/meta/llama-3.3-70b-instruct-fp8-fast`
+  when `max_tokens` isn't specified, silently truncating output
+  (`finish_reason: "length"`) rather than erroring — confirmed directly
+  against the raw API, both the broken default (256 tokens, cut off
+  mid-sentence at ~1361 chars) and the fix (2048, completes naturally at
+  `finish_reason: "stop"`, 1134 tokens used). This bit both
+  `workflow.ts`'s `generate-report` step (`maxOutputTokens: 2048`) and
+  its `classify-*` steps (`maxOutputTokens: 512`, less likely to have
+  been visibly truncating given how short a single classification object
+  is, but same unset default) and `agent.ts`'s `askQuestion`
+  (`maxOutputTokens: 1024`) — same bug, three call sites. Verified the
+  `askQuestion` fix against a real running app (real 4108-char answer
+  ending on a complete sentence, not just the standalone API test).
+  When adding any new LLM call in this codebase, set `maxOutputTokens`
+  from the start; don't rely on the platform default.
+- **The report is capped to the top 10 findings — a prompt-level
+  stopgap, not a real fix for large CBOMs.** Added 2026-09-04, same day
+  as the `maxOutputTokens` fix above, because raising the cap alone
+  doesn't scale: `generate-report`'s prompt embeds
+  `JSON.stringify(findings)` and `JSON.stringify(analysis)` for _every_
+  finding, so as a CBOM grows, both the input token count and the output
+  needed to cover all of them grow too — a large enough CBOM will blow
+  through `maxOutputTokens: 2048` again (or the model's 24k context
+  window, eventually) the same way the unset default did. The prompt in
+  `workflow.ts`'s `generate-report` step now explicitly instructs the
+  model to group by priority but cap the report to the top 10 findings.
+  **This is a soft, model-obeyed instruction, not a deterministic
+  code-level limit** — there's no guarantee the model picks exactly 10,
+  or picks the _actual_ top 10 by severity rather than its own reading of
+  "top." The `classify-*` step is unaffected and still classifies every
+  finding individually regardless of CBOM size — only the final report's
+  narrative is capped. Treat this as a "for now" stopgap, not the long-
+  term answer: revisit once CBOM sizes in practice are known (see "Next
+  steps" — validating the parser against real PQCA tooling-eval output).
+  Real fixes to consider then: sort/truncate findings in code _before_
+  they ever reach the prompt (deterministic, cheaper, and cuts input
+  tokens too, not just output), or paginate/chunk the report across
+  multiple `step.do()` calls instead of one shot.
 - **`completeAnalysis` and `reportWorkflowError` are deliberately NOT
   `@callable()`.** Fixed 2026-09-02 (security scan): both were previously
   `@callable()`-decorated, which — per the `agents` package's own
@@ -67,11 +91,11 @@ to it.
   arbitrary error message — both trivially reachable given the
   hardcoded `"default-session"` name (see below). Verified exploitable
   before the fix and verified blocked after (`Method completeAnalysis is
-  not callable`) against a real dev server, not just reasoned about.
+not callable`) against a real dev server, not just reasoned about.
   **Do not re-add `@callable()` to either method** — if the frontend
   ever needs to observe completion/error client-side, that already
   happens via `onStateUpdate` syncing `state.status`; there's no
-  legitimate reason for a browser client to *set* that state directly.
+  legitimate reason for a browser client to _set_ that state directly.
   This doesn't fix the underlying "any client can act as any session"
   exposure — that's the hardcoded-session-name issue below, already
   tracked — it closes the specific privileged-callback bypass.
@@ -106,12 +130,12 @@ to it.
   don't reach for the old package from stale training data, verify
   against the registry like the `ai` SDK v5→v7 jump. Config lives in
   `vitest.config.ts` via `cloudflareTest({ wrangler: { configPath:
-  "./wrangler.jsonc" } })`, which derives all bindings (AI, the
+"./wrangler.jsonc" } })`, which derives all bindings (AI, the
   `CryptoRiskAgent` DO, `RISK_WORKFLOW`) from the real wrangler config —
   no separate test-only binding setup to keep in sync.
 - **`vitest.config.ts` also needs `agents()` from `agents/vite`, or
   `@callable()` fails at import time with `SyntaxError: Invalid or
-  unexpected token`.** The Agents SDK uses TC39 (standard) decorators;
+unexpected token`.** The Agents SDK uses TC39 (standard) decorators;
   the vitest plugin's own Vite/Oxc transform doesn't support that syntax
   without this plugin. Do **not** "fix" this by setting
   `experimentalDecorators: true` in a tsconfig — that applies the
@@ -166,7 +190,7 @@ to it.
   code is enough to avoid needing real credentials in CI; it isn't.
   **The token also needs the right permission scope, not just to
   exist** — confirmed 2026-09-01: a token sufficient for `wrangler
-  deploy` was rejected with `Authentication error [code: 10000]`
+deploy` was rejected with `Authentication error [code: 10000]`
   specifically on `/accounts/.../workers/subdomain/edge-preview` (the
   remote-bindings preview session `@cloudflare/vitest-plugin` needs to
   start the test pool). Isolated by hitting that exact endpoint directly
@@ -179,7 +203,7 @@ to it.
   template first. `wrangler-action` invokes
   `wrangler deploy` directly, not `npm run deploy`, so the `predeploy`
   npm hook never fires — the deploy step passes `preCommands: npm run
-  build:client` explicitly instead; don't remove that assuming the hook
+build:client` explicitly instead; don't remove that assuming the hook
   covers it.
 - **Session name is hardcoded to `"default-session"`.** Fine for solo
   use and for the assignment demo. First thing to fix before any
@@ -201,6 +225,13 @@ binding: this.env.AI })`. This looks wasteful if you assume it opens a
 
 ## What's real vs. stubbed right now
 
+- **Known limitation: report generation doesn't scale to large CBOMs
+  yet.** The report is capped to the top 10 findings via a prompt
+  instruction, a stopgap for the `maxOutputTokens` truncation bug (see
+  "Key decisions") — not a real fix. Every finding still gets classified
+  individually regardless of CBOM size; only the final report narrative
+  is capped, and the cap itself is model-obeyed, not deterministic. Full
+  reasoning and real-fix options are in "Key decisions."
 - **Real and verified**: Agent, Workflow, wrangler bindings, and the
   classify → report pipeline wire together correctly. Confirmed via
   `tsc --noEmit` (both `tsconfig.json` for the Worker and
@@ -216,7 +247,7 @@ binding: this.env.AI })`. This looks wasteful if you assume it opens a
   `CryptoFinding`'s flat shape needs real sample output to get right, not
   synthetic data. Non-crypto components (libraries, etc.) are silently
   skipped, no warning. Wired end to end: `CryptoRiskAgent.ingestCBOM(json:
-  string)` parses and kicks off the same `startAnalysis` pipeline
+string)` parses and kicks off the same `startAnalysis` pipeline
   `ingestFindings` uses; the frontend textarea now takes raw CBOM JSON
   instead of a pre-normalized array (`ingestFindings` still exists,
   useful for programmatic/test entry). Verified against a synthetic
