@@ -298,8 +298,7 @@ types`). Corrected against the real npm registry and verified installing
 1. Validate the CBOM parser against real CBOM tooling-eval output (PQCA)
    — fix field-mapping bugs the synthetic sample didn't exercise, then
    decide whether `certificate`/`protocol` assets are worth mapping.
-2. Iterate on the classification prompt — this is genuinely the part
-   worth spending the most time on, not a checkbox.
+2. Continue to iterate on the classification prompt.
 3. Session-id fix if this is going anywhere near a real client.
 4. Prompt-history log for the assignment submission (this file plus git commit history should cover most of it).
 5. **Migrate `Agent` → `AIChatAgent` for real multi-turn streaming

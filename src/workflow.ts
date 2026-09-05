@@ -40,8 +40,8 @@ export class CryptoRiskWorkflow extends WorkflowEntrypoint<Env, RiskWorkflowPara
               "If the finding is a classical security risk, say so. Don't conflate to a pqc risk, ",
               "but assign priority based off of real security risk.", 
               "State what you don't know. Describe what information is limited rather than overstating.",
-              "Give a priority (critical, high, medium, low), a short rationale, and concrete NIST migration ",
-              "guidance for this specific finding. Be specific about NIST approved algorithms for migration.",
+              "Give a priority (critical, high, medium, low), a short rationale, and concrete NIST migration",
+              "guidance for this specific finding, not just the NIST specification itself. Be specific about NIST approved algorithms for migration.",
               "ML-KEM, ML-DSA, SLH-DSA, and other NIST PQC standards are compliant, classify as informational."
             ].join(" "),
           });
@@ -66,7 +66,7 @@ export class CryptoRiskWorkflow extends WorkflowEntrypoint<Env, RiskWorkflowPara
           prompt: [
             "Write a prioritized post-quantum cryptography migration report in markdown.",
             "Group findings by priority (critical, high, medium, low) but cap the report ",
-            "to the top 10 findings. For each, include the,",
+            "to the top 10 findings. For each, include an ID, the,",
             "location, why it's rated that way, and the migration guidance.",
             `Findings: ${JSON.stringify(findings)}`,
             `Analysis: ${JSON.stringify(analysis)}`,
